@@ -203,4 +203,138 @@ export class AuthService {
       return false;
     }
   }
+
+  // ==================== MÉTODOS DE CARACTERIZACIÓN ====================
+
+  static async crearCaracterizacion(data: any) {
+    try {
+      const response = await fetch(`${API_URL}/caracterizaciones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error creando caracterización');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error en crearCaracterizacion:', error);
+      throw error;
+    }
+  }
+
+  static async getCaracterizacionFamilia(familiaId: number) {
+    try {
+      const response = await fetch(`${API_URL}/familias/${familiaId}/caracterizacion`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // No hay caracterización
+        }
+        throw new Error('Error obteniendo caracterización');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error en getCaracterizacionFamilia:', error);
+      throw error;
+    }
+  }
+
+  static async getPacienteDetalle(pacienteId: number) {
+    try {
+      // Por ahora, obtener el paciente con su caracterización desde la familia
+      // En el futuro esto podría ser un endpoint específico
+      const response = await fetch(`${API_URL}/pacientes/${pacienteId}`);
+      
+      if (!response.ok) {
+        throw new Error('Error obteniendo detalle del paciente');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error en getPacienteDetalle:', error);
+      throw error;
+    }
+  }
+
+  // ==================== MÉTODOS DE PLANES DE CUIDADO ====================
+
+  static async getPlanesCuidadoPaciente(pacienteId: number) {
+    try {
+      const response = await fetch(`${API_URL}/pacientes/${pacienteId}/planes-cuidado`);
+      if (!response.ok) throw new Error('Error obteniendo planes de cuidado');
+      return response.json();
+    } catch (error) {
+      console.error('Error en getPlanesCuidadoPaciente:', error);
+      throw error;
+    }
+  }
+
+  static async crearPlanCuidado(data: any) {
+    try {
+      const response = await fetch(`${API_URL}/planes-cuidado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error creando plan de cuidado');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error en crearPlanCuidado:', error);
+      throw error;
+    }
+  }
+
+  // ==================== MÉTODOS DE DEMANDAS INDUCIDAS ====================
+
+  static async getDemandasInducidasPaciente(pacienteId: number) {
+    try {
+      const response = await fetch(`${API_URL}/pacientes/${pacienteId}/demandas-inducidas`);
+      if (!response.ok) throw new Error('Error obteniendo demandas inducidas');
+      return response.json();
+    } catch (error) {
+      console.error('Error en getDemandasInducidasPaciente:', error);
+      throw error;
+    }
+  }
+
+  static async crearDemandaInducida(data: any) {
+    try {
+      const response = await fetch(`${API_URL}/demandas-inducidas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error creando demanda inducida');
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error en crearDemandaInducida:', error);
+      throw error;
+    }
+  }
+
+  static async getDemandasAsignadas(usuarioId: number) {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/${usuarioId}/demandas-asignadas`);
+      if (!response.ok) throw new Error('Error obteniendo demandas asignadas');
+      return response.json();
+    } catch (error) {
+      console.error('Error en getDemandasAsignadas:', error);
+      throw error;
+    }
+  }
 }

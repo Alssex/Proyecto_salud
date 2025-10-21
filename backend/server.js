@@ -1,4 +1,4 @@
-// backend/server.js
+// backend/server.js - API v1 Structure
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
@@ -10,6 +10,7 @@ app.use(express.json());
 
 // Conectar a SQLite (usa la ruta correcta de tu BD)
 const dbPath = path.join(__dirname, 'database', 'salud_digital_aps.db');
+console.log('📊 Base de datos: ', dbPath);
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error conectando a SQLite:', err.message);
@@ -18,51 +19,92 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
-// ==================== ENDPOINTS DE AUTENTICACIÓN ====================
+// ==================== API v1 STRUCTURE ====================
 
-// Login de usuarios (mantener compatibilidad con /api/auth/login)
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  console.log('Login attempt:', email);
-  
-  const query = `
-    SELECT 
-      u.usuario_id, u.nombre_completo, u.email, u.numero_documento,
-      r.nombre_rol, r.rol_id,
-      e.nombre_equipo, e.equipo_id
-    FROM Usuarios u 
-    JOIN Roles r ON u.rol_id = r.rol_id 
-    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id 
-    WHERE u.email = ? AND u.numero_documento = ?
-  `;
-  
-  db.get(query, [email, password], (err, row) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ error: 'Error del servidor' });
+// Root endpoint
+app.get('/api/v1', (req, res) => {
+  res.json({
+    message: 'API v1 - Salud Digital APS',
+    version: '1.0.0',
+    endpoints: {
+      usuarios: '/api/v1/usuarios',
+      demandas: '/api/v1/demandas',
+      equipos: '/api/v1/equipos',
+      bitacoras: '/api/v1/bitacoras',
+      familias: '/api/v1/familias',
+      pacientes: '/api/v1/pacientes',
+      token: '/api/v1/token',
+      historias_clinicas: '/api/v1/historias-clinicas',
+      reportes: '/api/v1/reportes',
+      caracterizaciones: '/api/v1/caracterizaciones',
+      planes_cuidado: '/api/v1/planes-cuidado'
     }
-    if (!row) {
-      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
-    }
-    
-    console.log('Login successful for:', row.nombre_completo);
-    res.json({ 
-      success: true, 
-      user: {
-        id: row.usuario_id,
-        name: row.nombre_completo,
-        email: row.email,
-        role: row.nombre_rol,
-        roleId: row.rol_id,
-        team: row.nombre_equipo,
-        document: row.numero_documento
-      }
-    });
   });
 });
 
-// Token/Login endpoint (nuevo formato)
-app.post('/api/token', (req, res) => {
+// API v1 docs (árbol de endpoints)
+app.get('/api/v1/docs', (req, res) => {
+  res.json({
+    base: '/api/v1',
+    tree: [
+      {
+        path: '/usuarios',
+        methods: [{ method: 'GET', path: '/' }, { method: 'GET', path: '/me' }]
+      },
+      {
+        path: '/demandas',
+        methods: [
+          { method: 'GET', path: '/asignadas' },
+          { method: 'POST', path: '/:id/historia-clinica' }
+        ]
+      },
+      {
+        path: '/equipos',
+        methods: [{ method: 'GET', path: '/:id/usuarios' }]
+      },
+      {
+        path: '/bitacoras',
+        methods: [{ method: 'POST', path: '/' }, { method: 'GET', path: '/' }]
+      },
+      {
+        path: '/familias',
+        methods: [{ method: 'POST', path: '/:id/caracterizacion' }]
+      },
+      {
+        path: '/pacientes',
+        methods: [
+          { method: 'POST', path: '/' },
+          { method: 'POST', path: '/:id/plan-cuidado' },
+          { method: 'GET', path: '/:id/historias-clinicas' },
+          { method: 'POST', path: '/:id/receta' },
+          { method: 'POST', path: '/:id/orden-lab' }
+        ]
+      },
+      { path: '/token', methods: [{ method: 'POST', path: '/' }] },
+      {
+        path: '/historias-clinicas',
+        methods: [{ method: 'GET', path: '/:id/epidemiologico' }]
+      },
+      {
+        path: '/reportes',
+        methods: [{ method: 'GET', path: '/productividad' }]
+      },
+      {
+        path: '/caracterizaciones',
+        methods: [{ method: 'PUT', path: '/:id' }]
+      },
+      {
+        path: '/planes-cuidado',
+        methods: [{ method: 'POST', path: '/:id/demanda' }]
+      }
+    ]
+  });
+});
+
+// ==================== ENDPOINTS DE AUTENTICACIÓN ====================
+
+// POST /api/v1/token - Login
+app.post('/api/v1/token', (req, res) => {
   const { email, password } = req.body;
   console.log('Token request:', email);
   
@@ -102,98 +144,209 @@ app.post('/api/token', (req, res) => {
   });
 });
 
-// ==================== ENDPOINTS DE DATOS ====================
+// ==================== USUARIOS ENDPOINTS ====================
 
-// Obtener todas las familias (con conteo de integrantes)
-app.get('/api/familias', (req, res) => {
+// GET /api/v1/usuarios - List all users
+app.get('/api/v1/usuarios', (req, res) => {
   const query = `
     SELECT 
-      f.familia_id, f.apellido_principal, f.direccion, 
-      f.barrio_vereda, f.municipio, f.telefono_contacto,
-      u.nombre_completo as creado_por,
-      (
-        SELECT COUNT(1) FROM Pacientes p
-        WHERE p.familia_id = f.familia_id AND p.activo = 1
-      ) AS integrantes_count
-    FROM Familias f 
-    JOIN Usuarios u ON f.creado_por_uid = u.usuario_id
-    ORDER BY f.apellido_principal
+      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
+      r.nombre_rol, r.rol_id,
+      e.nombre_equipo, e.equipo_id, e.zona_cobertura
+    FROM Usuarios u
+    JOIN Roles r ON u.rol_id = r.rol_id
+    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
+    WHERE u.activo = 1
+    ORDER BY u.nombre_completo
+  `;
+
+  db.all(query, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// GET /api/v1/usuarios/me - Get current user profile
+app.get('/api/v1/usuarios/me', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+  
+  const token = authHeader.replace('Bearer ', '');
+  const userId = token.split('_')[1];
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+
+  const query = `
+    SELECT 
+      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
+      r.nombre_rol, r.rol_id,
+      e.nombre_equipo, e.equipo_id, e.zona_cobertura
+    FROM Usuarios u
+    JOIN Roles r ON u.rol_id = r.rol_id
+    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
+    WHERE u.usuario_id = ? AND u.activo = 1
+  `;
+
+  db.get(query, [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(row);
+  });
+});
+
+// ==================== DEMANDAS ENDPOINTS ====================
+
+// GET /api/v1/demandas/asignadas - View my assigned demands
+app.get('/api/v1/demandas/asignadas', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+  
+  const query = `
+    SELECT 
+      d.demanda_id, d.tipo_demanda, d.descripcion, d.fecha_creacion, d.estado,
+      f.apellido_principal, f.familia_id,
+      p.primer_nombre, p.primer_apellido, p.paciente_id
+    FROM Demandas d
+    LEFT JOIN Familias f ON d.familia_id = f.familia_id
+    LEFT JOIN Pacientes p ON d.paciente_id = p.paciente_id
+    WHERE d.activa = 1
+    ORDER BY d.fecha_creacion DESC
   `;
   
   db.all(query, (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+    if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
-// Obtener una familia por id (con conteo de integrantes)
-app.get('/api/familias/:id', (req, res) => {
+// POST /api/v1/demandas/{id}/historia-clinica - Create medical history for demand
+app.post('/api/v1/demandas/:id/historia-clinica', (req, res) => {
   const { id } = req.params;
-
-  const query = `
-    SELECT 
-      f.*, (
-        SELECT COUNT(1) FROM Pacientes p
-        WHERE p.familia_id = f.familia_id AND p.activo = 1
-      ) AS integrantes_count
-    FROM Familias f
-    WHERE f.familia_id = ?
+  const { paciente_id, tipo_consulta, motivo_consulta, sintomas, diagnostico, tratamiento, observaciones } = req.body;
+  
+  if (!paciente_id || !tipo_consulta || !motivo_consulta) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+  
+  const insert = `
+    INSERT INTO Historias_Clinicas (paciente_id, demanda_id, tipo_consulta, motivo_consulta, sintomas, diagnostico, tratamiento, observaciones, fecha_consulta)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `;
-
-  db.get(query, [id], (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!row) return res.status(404).json({ error: 'Familia no encontrada' });
-    res.json(row);
+  
+  db.run(insert, [paciente_id, id, tipo_consulta, motivo_consulta, sintomas || null, diagnostico || null, tratamiento || null, observaciones || null], function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo crear la historia clínica' });
+    res.status(201).json({ historia_clinica_id: this.lastID });
   });
 });
 
-// Obtener pacientes por familia
-app.get('/api/familias/:id/pacientes', (req, res) => {
+// ==================== EQUIPOS ENDPOINTS ====================
+
+// GET /api/v1/equipos/{id}/usuarios - List users by team
+app.get('/api/v1/equipos/:id/usuarios', (req, res) => {
   const { id } = req.params;
   
   const query = `
     SELECT 
-      paciente_id, numero_documento, tipo_documento,
-      primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-      fecha_nacimiento, genero, telefono, email
-    FROM Pacientes 
-    WHERE familia_id = ? AND activo = 1
+      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
+      r.nombre_rol, r.rol_id
+    FROM Usuarios u
+    JOIN Roles r ON u.rol_id = r.rol_id
+    WHERE u.equipo_id = ? AND u.activo = 1
+    ORDER BY u.nombre_completo
   `;
   
   db.all(query, [id], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+    if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
-// Obtener un paciente por id
-app.get('/api/pacientes/:id', (req, res) => {
-  const { id } = req.params;
+// ==================== BITÁCORAS ENDPOINTS ====================
 
-  const query = `
-    SELECT 
-      paciente_id, familia_id, numero_documento, tipo_documento,
-      primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-      fecha_nacimiento, genero, telefono, email, activo
-    FROM Pacientes
-    WHERE paciente_id = ?
+// POST /api/v1/bitacoras - Register log entry
+app.post('/api/v1/bitacoras', (req, res) => {
+  const { usuario_id, tipo_actividad, descripcion, ubicacion, observaciones } = req.body;
+  
+  if (!usuario_id || !tipo_actividad || !descripcion) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+  
+  const insert = `
+    INSERT INTO Bitacoras (usuario_id, tipo_actividad, descripcion, ubicacion, observaciones, fecha_registro)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
   `;
-
-  db.get(query, [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: 'Paciente no encontrado' });
-    res.json(row);
+  
+  db.run(insert, [usuario_id, tipo_actividad, descripcion, ubicacion || null, observaciones || null], function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo registrar la bitácora' });
+    res.status(201).json({ bitacora_id: this.lastID });
   });
 });
 
-// Crear un nuevo paciente vinculado a una familia
-app.post('/api/pacientes', (req, res) => {
+// GET /api/v1/bitacoras - Search log entries
+app.get('/api/v1/bitacoras', (req, res) => {
+  const { usuario_id, tipo_actividad, fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT b.*, u.nombre_completo as usuario_nombre
+    FROM Bitacoras b
+    JOIN Usuarios u ON b.usuario_id = u.usuario_id
+    WHERE 1=1
+  `;
+  const params = [];
+  
+  if (usuario_id) {
+    query += ' AND b.usuario_id = ?';
+    params.push(usuario_id);
+  }
+  if (tipo_actividad) {
+    query += ' AND b.tipo_actividad = ?';
+    params.push(tipo_actividad);
+  }
+  if (fecha_desde) {
+    query += ' AND b.fecha_registro >= ?';
+    params.push(fecha_desde);
+  }
+  if (fecha_hasta) {
+    query += ' AND b.fecha_registro <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY b.fecha_registro DESC';
+  
+  db.all(query, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// ==================== FAMILIAS ENDPOINTS ====================
+
+// POST /api/v1/familias/{id}/caracterizacion - Create family characterization
+app.post('/api/v1/familias/:id/caracterizacion', (req, res) => {
+  const { id } = req.params;
+  const { tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones } = req.body;
+  
+  const insert = `
+    INSERT INTO Caracterizaciones (familia_id, tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones, fecha_caracterizacion)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `;
+  
+  db.run(insert, [id, tipo_vivienda || null, material_paredes || null, material_piso || null, servicios_publicos || null, numero_habitaciones || null, numero_personas || null, ingresos_mensuales || null, observaciones || null], function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo crear la caracterización' });
+    res.status(201).json({ caracterizacion_id: this.lastID });
+  });
+});
+
+// ==================== PACIENTES ENDPOINTS ====================
+
+// POST /api/v1/pacientes - Add new patient
+app.post('/api/v1/pacientes', (req, res) => {
   const {
     familia_id,
     numero_documento,
@@ -234,511 +387,12 @@ app.post('/api/pacientes', (req, res) => {
       return res.status(500).json({ error: 'No se pudo crear el paciente' });
     }
     const createdId = this.lastID;
-    db.get(
-      `SELECT paciente_id, familia_id, numero_documento, tipo_documento,
-              primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-              fecha_nacimiento, genero, telefono, email
-       FROM Pacientes WHERE paciente_id = ?`,
-      [createdId],
-      (err2, row) => {
-        if (err2) return res.status(201).json({ paciente_id: createdId, familia_id });
-        res.status(201).json(row);
-      }
-    );
+    res.status(201).json({ paciente_id: createdId, familia_id });
   });
 });
 
-// Actualizar un paciente por id
-app.put('/api/pacientes/:id', (req, res) => {
-  const { id } = req.params;
-  const {
-    numero_documento,
-    tipo_documento,
-    primer_nombre,
-    segundo_nombre,
-    primer_apellido,
-    segundo_apellido,
-    fecha_nacimiento,
-    genero,
-    telefono,
-    email,
-    familia_id,
-    activo
-  } = req.body || {};
-
-  const update = `
-    UPDATE Pacientes SET
-      familia_id = COALESCE(?, familia_id),
-      numero_documento = COALESCE(?, numero_documento),
-      tipo_documento = COALESCE(?, tipo_documento),
-      primer_nombre = COALESCE(?, primer_nombre),
-      segundo_nombre = COALESCE(?, segundo_nombre),
-      primer_apellido = COALESCE(?, primer_apellido),
-      segundo_apellido = COALESCE(?, segundo_apellido),
-      fecha_nacimiento = COALESCE(?, fecha_nacimiento),
-      genero = COALESCE(?, genero),
-      telefono = COALESCE(?, telefono),
-      email = COALESCE(?, email),
-      activo = COALESCE(?, activo)
-    WHERE paciente_id = ?
-  `;
-
-  const params = [
-    familia_id ?? null,
-    numero_documento ?? null,
-    tipo_documento ?? null,
-    primer_nombre ?? null,
-    (segundo_nombre === undefined ? null : segundo_nombre),
-    primer_apellido ?? null,
-    (segundo_apellido === undefined ? null : segundo_apellido),
-    (fecha_nacimiento === undefined ? null : fecha_nacimiento),
-    (genero === undefined ? null : genero),
-    (telefono === undefined ? null : telefono),
-    (email === undefined ? null : email),
-    (activo === undefined ? null : activo),
-    id
-  ];
-
-  db.run(update, params, function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo actualizar el paciente' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Paciente no encontrado' });
-    db.get(
-      `SELECT paciente_id, familia_id, numero_documento, tipo_documento,
-              primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-              fecha_nacimiento, genero, telefono, email, activo
-       FROM Pacientes WHERE paciente_id = ?`,
-      [id],
-      (err2, row) => {
-        if (err2) return res.json({ paciente_id: Number(id) });
-        res.json(row);
-      }
-    );
-  });
-});
-
-// Eliminar (baja lógica) un paciente por id
-app.delete('/api/pacientes/:id', (req, res) => {
-  const { id } = req.params;
-
-  const update = `UPDATE Pacientes SET activo = 0 WHERE paciente_id = ?`;
-
-  db.run(update, [id], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo eliminar el paciente' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Paciente no encontrado' });
-    res.status(204).send();
-  });
-});
-
-// Crear una nueva familia
-app.post('/api/familias', (req, res) => {
-  const {
-    apellido_principal,
-    direccion,
-    barrio_vereda,
-    municipio,
-    telefono_contacto,
-    creado_por_uid
-  } = req.body || {};
-
-  if (!apellido_principal || !direccion || !municipio || !creado_por_uid) {
-    return res.status(400).json({
-      error: 'Faltan campos obligatorios: apellido_principal, direccion, municipio, creado_por_uid'
-    });
-  }
-
-  const insert = `
-    INSERT INTO Familias (apellido_principal, direccion, barrio_vereda, municipio, telefono_contacto, creado_por_uid)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(
-    insert,
-    [apellido_principal, direccion, barrio_vereda || null, municipio, telefono_contacto || null, creado_por_uid],
-    function (err) {
-      if (err) {
-        console.error('Error insertando familia:', err);
-        return res.status(500).json({ error: 'No se pudo crear la familia' });
-      }
-      const createdId = this.lastID;
-      db.get(
-        `SELECT f.*, (
-            SELECT COUNT(1) FROM Pacientes p WHERE p.familia_id = f.familia_id AND p.activo = 1
-          ) AS integrantes_count
-         FROM Familias f WHERE f.familia_id = ?`,
-        [createdId],
-        (err2, row) => {
-          if (err2) {
-            return res.status(201).json({ familia_id: createdId });
-          }
-          res.status(201).json(row);
-        }
-      );
-    }
-  );
-});
-
-// Actualizar una familia por id
-app.put('/api/familias/:id', (req, res) => {
-  const { id } = req.params;
-  const {
-    apellido_principal,
-    direccion,
-    barrio_vereda,
-    municipio,
-    telefono_contacto
-  } = req.body || {};
-
-  const update = `
-    UPDATE Familias SET
-      apellido_principal = COALESCE(?, apellido_principal),
-      direccion = COALESCE(?, direccion),
-      barrio_vereda = COALESCE(?, barrio_vereda),
-      municipio = COALESCE(?, municipio),
-      telefono_contacto = COALESCE(?, telefono_contacto)
-    WHERE familia_id = ?
-  `;
-
-  const params = [
-    (apellido_principal === undefined ? null : apellido_principal),
-    (direccion === undefined ? null : direccion),
-    (barrio_vereda === undefined ? null : barrio_vereda),
-    (municipio === undefined ? null : municipio),
-    (telefono_contacto === undefined ? null : telefono_contacto),
-    id
-  ];
-
-  db.run(update, params, function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo actualizar la familia' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Familia no encontrada' });
-    db.get(
-      `SELECT f.*, (
-          SELECT COUNT(1) FROM Pacientes p WHERE p.familia_id = f.familia_id AND p.activo = 1
-        ) AS integrantes_count
-       FROM Familias f WHERE f.familia_id = ?`,
-      [id],
-      (err2, row) => {
-        if (err2) return res.json({ familia_id: Number(id) });
-        res.json(row);
-      }
-    );
-  });
-});
-
-// Eliminar una familia por id (solo si no tiene pacientes activos)
-app.delete('/api/familias/:id', (req, res) => {
-  const { id } = req.params;
-
-  const countPacientes = `SELECT COUNT(1) AS cnt FROM Pacientes WHERE familia_id = ? AND activo = 1`;
-  db.get(countPacientes, [id], (err, row) => {
-    if (err) return res.status(500).json({ error: 'No se pudo validar dependencias' });
-    if (row && row.cnt > 0) return res.status(400).json({ error: 'No se puede eliminar: la familia tiene pacientes activos' });
-
-    db.run(`DELETE FROM Familias WHERE familia_id = ?`, [id], function(err2) {
-      if (err2) return res.status(500).json({ error: 'No se pudo eliminar la familia' });
-      if (this.changes === 0) return res.status(404).json({ error: 'Familia no encontrada' });
-      res.status(204).send();
-    });
-  });
-});
-
-// Obtener usuarios por rol
-app.get('/api/usuarios/rol/:rol', (req, res) => {
-  const { rol } = req.params;
-  
-  const query = `
-    SELECT u.usuario_id, u.nombre_completo, u.email, u.telefono,
-           e.nombre_equipo, e.zona_cobertura
-    FROM Usuarios u
-    JOIN Roles r ON u.rol_id = r.rol_id
-    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
-    WHERE r.nombre_rol = ? AND u.activo = 1
-  `;
-  
-  db.all(query, [rol], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    res.json(rows);
-  });
-});
-
-// Obtener usuario por id (con rol y equipo)
-app.get('/api/usuarios/:id', (req, res) => {
-  const { id } = req.params;
-
-  const query = `
-    SELECT 
-      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
-      r.nombre_rol, r.rol_id,
-      e.nombre_equipo, e.equipo_id, e.zona_cobertura
-    FROM Usuarios u
-    JOIN Roles r ON u.rol_id = r.rol_id
-    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
-    WHERE u.usuario_id = ?
-  `;
-
-  db.get(query, [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
-    res.json(row);
-  });
-});
-
-// Listar todos los usuarios
-app.get('/api/usuarios', (req, res) => {
-  const query = `
-    SELECT 
-      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
-      r.nombre_rol, r.rol_id,
-      e.nombre_equipo, e.equipo_id, e.zona_cobertura
-    FROM Usuarios u
-    JOIN Roles r ON u.rol_id = r.rol_id
-    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
-    WHERE u.activo = 1
-    ORDER BY u.nombre_completo
-  `;
-
-  db.all(query, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Perfil del usuario actual (requiere autenticación)
-app.get('/api/usuarios/me', (req, res) => {
-  // En una implementación real, aquí validarías el token
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Token requerido' });
-  }
-  
-  // Por simplicidad, asumimos que el token contiene el ID del usuario
-  const token = authHeader.replace('Bearer ', '');
-  const userId = token.split('_')[1];
-  
-  if (!userId) {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
-
-  const query = `
-    SELECT 
-      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
-      r.nombre_rol, r.rol_id,
-      e.nombre_equipo, e.equipo_id, e.zona_cobertura
-    FROM Usuarios u
-    JOIN Roles r ON u.rol_id = r.rol_id
-    LEFT JOIN Equipos_Basicos e ON u.equipo_id = e.equipo_id
-    WHERE u.usuario_id = ? AND u.activo = 1
-  `;
-
-  db.get(query, [userId], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: 'Usuario no encontrado' });
-    res.json(row);
-  });
-});
-
-// Listado de roles
-app.get('/api/roles', (req, res) => {
-  db.all(`SELECT rol_id, nombre_rol FROM Roles ORDER BY nombre_rol`, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Listado de equipos básicos
-app.get('/api/equipos', (req, res) => {
-  db.all(`SELECT equipo_id, nombre_equipo, zona_cobertura FROM Equipos_Basicos ORDER BY nombre_equipo`, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Listar usuarios por equipo
-app.get('/api/equipos/:id/usuarios', (req, res) => {
-  const { id } = req.params;
-  
-  const query = `
-    SELECT 
-      u.usuario_id, u.nombre_completo, u.email, u.numero_documento, u.telefono,
-      r.nombre_rol, r.rol_id
-    FROM Usuarios u
-    JOIN Roles r ON u.rol_id = r.rol_id
-    WHERE u.equipo_id = ? AND u.activo = 1
-    ORDER BY u.nombre_completo
-  `;
-  
-  db.all(query, [id], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// ==================== ENDPOINTS DE DEMANDAS ====================
-
-// Ver mis demandas asignadas
-app.get('/api/demandas/asignadas', (req, res) => {
-  // En una implementación real, aquí validarías el token y obtendrías el usuario actual
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Token requerido' });
-  }
-  
-  const query = `
-    SELECT 
-      d.demanda_id, d.tipo_demanda, d.descripcion, d.fecha_creacion, d.estado,
-      f.apellido_principal, f.familia_id,
-      p.primer_nombre, p.primer_apellido, p.paciente_id
-    FROM Demandas d
-    LEFT JOIN Familias f ON d.familia_id = f.familia_id
-    LEFT JOIN Pacientes p ON d.paciente_id = p.paciente_id
-    WHERE d.activa = 1
-    ORDER BY d.fecha_creacion DESC
-  `;
-  
-  db.all(query, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Crear historia clínica para una demanda
-app.post('/api/demandas/:id/historia-clinica', (req, res) => {
-  const { id } = req.params;
-  const { paciente_id, tipo_consulta, motivo_consulta, sintomas, diagnostico, tratamiento, observaciones } = req.body;
-  
-  if (!paciente_id || !tipo_consulta || !motivo_consulta) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  }
-  
-  const insert = `
-    INSERT INTO Historias_Clinicas (paciente_id, demanda_id, tipo_consulta, motivo_consulta, sintomas, diagnostico, tratamiento, observaciones, fecha_consulta)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `;
-  
-  db.run(insert, [paciente_id, id, tipo_consulta, motivo_consulta, sintomas || null, diagnostico || null, tratamiento || null, observaciones || null], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo crear la historia clínica' });
-    res.status(201).json({ historia_clinica_id: this.lastID });
-  });
-});
-
-// ==================== ENDPOINTS DE BITÁCORAS ====================
-
-// Registrar entrada en bitácora
-app.post('/api/bitacoras', (req, res) => {
-  const { usuario_id, tipo_actividad, descripcion, ubicacion, observaciones } = req.body;
-  
-  if (!usuario_id || !tipo_actividad || !descripcion) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  }
-  
-  const insert = `
-    INSERT INTO Bitacoras (usuario_id, tipo_actividad, descripcion, ubicacion, observaciones, fecha_registro)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
-  `;
-  
-  db.run(insert, [usuario_id, tipo_actividad, descripcion, ubicacion || null, observaciones || null], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo registrar la bitácora' });
-    res.status(201).json({ bitacora_id: this.lastID });
-  });
-});
-
-// Buscar entradas de bitácora
-app.get('/api/bitacoras', (req, res) => {
-  const { usuario_id, tipo_actividad, fecha_desde, fecha_hasta } = req.query;
-  
-  let query = `
-    SELECT b.*, u.nombre_completo as usuario_nombre
-    FROM Bitacoras b
-    JOIN Usuarios u ON b.usuario_id = u.usuario_id
-    WHERE 1=1
-  `;
-  const params = [];
-  
-  if (usuario_id) {
-    query += ' AND b.usuario_id = ?';
-    params.push(usuario_id);
-  }
-  if (tipo_actividad) {
-    query += ' AND b.tipo_actividad = ?';
-    params.push(tipo_actividad);
-  }
-  if (fecha_desde) {
-    query += ' AND b.fecha_registro >= ?';
-    params.push(fecha_desde);
-  }
-  if (fecha_hasta) {
-    query += ' AND b.fecha_registro <= ?';
-    params.push(fecha_hasta);
-  }
-  
-  query += ' ORDER BY b.fecha_registro DESC';
-  
-  db.all(query, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// ==================== ENDPOINTS DE CARACTERIZACIONES ====================
-
-// Crear caracterización para una familia
-app.post('/api/familias/:id/caracterizacion', (req, res) => {
-  const { id } = req.params;
-  const { tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones } = req.body;
-  
-  const insert = `
-    INSERT INTO Caracterizaciones (familia_id, tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones, fecha_caracterizacion)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `;
-  
-  db.run(insert, [id, tipo_vivienda || null, material_paredes || null, material_piso || null, servicios_publicos || null, numero_habitaciones || null, numero_personas || null, ingresos_mensuales || null, observaciones || null], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo crear la caracterización' });
-    res.status(201).json({ caracterizacion_id: this.lastID });
-  });
-});
-
-// Actualizar caracterización
-app.put('/api/caracterizaciones/:id', (req, res) => {
-  const { id } = req.params;
-  const { tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones } = req.body;
-  
-  const update = `
-    UPDATE Caracterizaciones SET
-      tipo_vivienda = COALESCE(?, tipo_vivienda),
-      material_paredes = COALESCE(?, material_paredes),
-      material_piso = COALESCE(?, material_piso),
-      servicios_publicos = COALESCE(?, servicios_publicos),
-      numero_habitaciones = COALESCE(?, numero_habitaciones),
-      numero_personas = COALESCE(?, numero_personas),
-      ingresos_mensuales = COALESCE(?, ingresos_mensuales),
-      observaciones = COALESCE(?, observaciones)
-    WHERE caracterizacion_id = ?
-  `;
-  
-  const params = [
-    tipo_vivienda === undefined ? null : tipo_vivienda,
-    material_paredes === undefined ? null : material_paredes,
-    material_piso === undefined ? null : material_piso,
-    servicios_publicos === undefined ? null : servicios_publicos,
-    numero_habitaciones === undefined ? null : numero_habitaciones,
-    numero_personas === undefined ? null : numero_personas,
-    ingresos_mensuales === undefined ? null : ingresos_mensuales,
-    observaciones === undefined ? null : observaciones,
-    id
-  ];
-  
-  db.run(update, params, function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo actualizar la caracterización' });
-    if (this.changes === 0) return res.status(404).json({ error: 'Caracterización no encontrada' });
-    res.json({ caracterizacion_id: id });
-  });
-});
-
-// ==================== ENDPOINTS DE PLANES DE CUIDADO ====================
-
-// Crear plan de cuidado para una familia
-app.post('/api/familias/:id/plan-cuidado', (req, res) => {
+// POST /api/v1/pacientes/{id}/plan-cuidado - Create care plan for patient
+app.post('/api/v1/pacientes/:id/plan-cuidado', (req, res) => {
   const { id } = req.params;
   const { objetivo, actividades, responsable, fecha_inicio, fecha_fin, observaciones } = req.body;
   
@@ -747,7 +401,7 @@ app.post('/api/familias/:id/plan-cuidado', (req, res) => {
   }
   
   const insert = `
-    INSERT INTO Planes_Cuidado (familia_id, objetivo, actividades, responsable, fecha_inicio, fecha_fin, observaciones, fecha_creacion)
+    INSERT INTO Planes_Cuidado (paciente_id, objetivo, actividades, responsable, fecha_inicio, fecha_fin, observaciones, fecha_creacion)
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `;
   
@@ -757,30 +411,8 @@ app.post('/api/familias/:id/plan-cuidado', (req, res) => {
   });
 });
 
-// Crear demanda para un plan de cuidado
-app.post('/api/planes-cuidado/:id/demanda', (req, res) => {
-  const { id } = req.params;
-  const { tipo_demanda, descripcion, prioridad, fecha_limite } = req.body;
-  
-  if (!tipo_demanda || !descripcion) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  }
-  
-  const insert = `
-    INSERT INTO Demandas (plan_cuidado_id, tipo_demanda, descripcion, prioridad, fecha_limite, fecha_creacion, activa)
-    VALUES (?, ?, ?, ?, ?, datetime('now'), 1)
-  `;
-  
-  db.run(insert, [id, tipo_demanda, descripcion, prioridad || 'media', fecha_limite || null], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo crear la demanda' });
-    res.status(201).json({ demanda_id: this.lastID });
-  });
-});
-
-// ==================== ENDPOINTS DE HISTORIAS CLÍNICAS ====================
-
-// Ver historial de historias clínicas de un paciente
-app.get('/api/pacientes/:id/historias-clinicas', (req, res) => {
+// GET /api/v1/pacientes/{id}/historias-clinicas - View patient medical history
+app.get('/api/v1/pacientes/:id/historias-clinicas', (req, res) => {
   const { id } = req.params;
   
   const query = `
@@ -800,30 +432,8 @@ app.get('/api/pacientes/:id/historias-clinicas', (req, res) => {
   });
 });
 
-// Crear orden de laboratorio para una historia clínica
-app.post('/api/historias-clinicas/:id/orden-lab', (req, res) => {
-  const { id } = req.params;
-  const { tipo_examen, descripcion, instrucciones, fecha_requerida } = req.body;
-  
-  if (!tipo_examen || !descripcion) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  }
-  
-  const insert = `
-    INSERT INTO Ordenes_Laboratorio (historia_clinica_id, tipo_examen, descripcion, instrucciones, fecha_requerida, fecha_creacion, estado)
-    VALUES (?, ?, ?, ?, ?, datetime('now'), 'pendiente')
-  `;
-  
-  db.run(insert, [id, tipo_examen, descripcion, instrucciones || null, fecha_requerida || null], function(err) {
-    if (err) return res.status(500).json({ error: 'No se pudo crear la orden de laboratorio' });
-    res.status(201).json({ orden_lab_id: this.lastID });
-  });
-});
-
-// ==================== ENDPOINTS DE RECETAS ====================
-
-// Crear receta para un paciente
-app.post('/api/pacientes/:id/receta', (req, res) => {
+// POST /api/v1/pacientes/{id}/receta - Create prescription for patient
+app.post('/api/v1/pacientes/:id/receta', (req, res) => {
   const { id } = req.params;
   const { medicamentos, instrucciones, fecha_vencimiento, profesional_id } = req.body;
   
@@ -842,10 +452,31 @@ app.post('/api/pacientes/:id/receta', (req, res) => {
   });
 });
 
-// ==================== ENDPOINTS DE REPORTES ====================
+// POST /api/v1/pacientes/{id}/orden-lab - Create lab order for patient
+app.post('/api/v1/pacientes/:id/orden-lab', (req, res) => {
+  const { id } = req.params;
+  const { tipo_examen, descripcion, instrucciones, fecha_requerida } = req.body;
+  
+  if (!tipo_examen || !descripcion) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+  
+  const insert = `
+    INSERT INTO Ordenes_Laboratorio (paciente_id, tipo_examen, descripcion, instrucciones, fecha_requerida, fecha_creacion, estado)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), 'pendiente')
+  `;
+  
+  db.run(insert, [id, tipo_examen, descripcion, instrucciones || null, fecha_requerida || null], function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo crear la orden de laboratorio' });
+    res.status(201).json({ orden_lab_id: this.lastID });
+  });
+});
 
-// Dashboard epidemiológico
-app.get('/api/reportes/epidemiologico', (req, res) => {
+// ==================== HISTORIAS CLÍNICAS ENDPOINTS ====================
+
+// GET /api/v1/historias-clinicas/{id}/epidemiologico - Epidemiological dashboard
+app.get('/api/v1/historias-clinicas/:id/epidemiologico', (req, res) => {
+  const { id } = req.params;
   const { fecha_desde, fecha_hasta } = req.query;
   
   let query = `
@@ -877,8 +508,10 @@ app.get('/api/reportes/epidemiologico', (req, res) => {
   });
 });
 
-// Reporte de productividad
-app.get('/api/reportes/productividad', (req, res) => {
+// ==================== REPORTES ENDPOINTS ====================
+
+// GET /api/v1/reportes/productividad - Productivity report
+app.get('/api/v1/reportes/productividad', (req, res) => {
   const { usuario_id, fecha_desde, fecha_hasta } = req.query;
   
   let query = `
@@ -916,7 +549,69 @@ app.get('/api/reportes/productividad', (req, res) => {
   });
 });
 
-// Health check
+// ==================== CARACTERIZACIONES ENDPOINTS ====================
+
+// PUT /api/v1/caracterizaciones/{id} - Update characterization
+app.put('/api/v1/caracterizaciones/:id', (req, res) => {
+  const { id } = req.params;
+  const { tipo_vivienda, material_paredes, material_piso, servicios_publicos, numero_habitaciones, numero_personas, ingresos_mensuales, observaciones } = req.body;
+  
+  const update = `
+    UPDATE Caracterizaciones SET
+      tipo_vivienda = COALESCE(?, tipo_vivienda),
+      material_paredes = COALESCE(?, material_paredes),
+      material_piso = COALESCE(?, material_piso),
+      servicios_publicos = COALESCE(?, servicios_publicos),
+      numero_habitaciones = COALESCE(?, numero_habitaciones),
+      numero_personas = COALESCE(?, numero_personas),
+      ingresos_mensuales = COALESCE(?, ingresos_mensuales),
+      observaciones = COALESCE(?, observaciones)
+    WHERE caracterizacion_id = ?
+  `;
+  
+  const params = [
+    tipo_vivienda === undefined ? null : tipo_vivienda,
+    material_paredes === undefined ? null : material_paredes,
+    material_piso === undefined ? null : material_piso,
+    servicios_publicos === undefined ? null : servicios_publicos,
+    numero_habitaciones === undefined ? null : numero_habitaciones,
+    numero_personas === undefined ? null : numero_personas,
+    ingresos_mensuales === undefined ? null : ingresos_mensuales,
+    observaciones === undefined ? null : observaciones,
+    id
+  ];
+  
+  db.run(update, params, function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo actualizar la caracterización' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Caracterización no encontrada' });
+    res.json({ caracterizacion_id: id });
+  });
+});
+
+// ==================== PLANES DE CUIDADO ENDPOINTS ====================
+
+// POST /api/v1/planes-cuidado/{id}/demanda - Create demand for care plan
+app.post('/api/v1/planes-cuidado/:id/demanda', (req, res) => {
+  const { id } = req.params;
+  const { tipo_demanda, descripcion, prioridad, fecha_limite } = req.body;
+  
+  if (!tipo_demanda || !descripcion) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+  
+  const insert = `
+    INSERT INTO Demandas (plan_cuidado_id, tipo_demanda, descripcion, prioridad, fecha_limite, fecha_creacion, activa)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), 1)
+  `;
+  
+  db.run(insert, [id, tipo_demanda, descripcion, prioridad || 'media', fecha_limite || null], function(err) {
+    if (err) return res.status(500).json({ error: 'No se pudo crear la demanda' });
+    res.status(201).json({ demanda_id: this.lastID });
+  });
+});
+
+// ==================== HEALTH CHECK ====================
+
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -925,8 +620,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Test endpoint funcionando',
+    timestamp: new Date().toISOString()
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor backend corriendo en http://localhost:${PORT}`);
   console.log(`📊 Base de datos: ${dbPath}`);
+  console.log(`🔗 API v1 disponible en: http://localhost:${PORT}/api/v1`);
 });

@@ -1,104 +1,98 @@
-# APS - Sistema de Registro Clínico
-
-Plataforma de Atención Primaria en Salud (APS) para registro clínico y gestión de pacientes.
-
-## 🏥 Descripción
-
-Sistema web diseñado para profesionales de la salud que permite:
-
-- Registro y gestión de familias y pacientes
-- Historia clínica digital
-- Consultas médicas especializadas
-- Recetario digital
-- Órdenes de exámenes
-- Dashboard epidemiológico
-- Reportes y estadísticas
-
-## 👥 Roles de Usuario
-
-El sistema soporta los siguientes roles profesionales:
-
-- **Médico**: Consultas médicas, diagnósticos, tratamientos
-- **Psicólogo**: Evaluaciones psicológicas, terapias
-- **Fisioterapeuta**: Terapias físicas, rehabilitación
-- **Nutricionista**: Evaluación nutricional, planes alimentarios
-- **Fonoaudiólogo**: Terapias del habla y audición
-- **Odontólogo**: Consultas odontológicas
-- **Enfermero Jefe**: Gestión de enfermería, planes de cuidado
-- **Auxiliar de Enfermería**: Apoyo en cuidados de enfermería
-- **Administrativo**: Gestión de citas, reportes administrativos
-- **Ente de Salud Pública**: Dashboard epidemiológico, supervisión
-
-## 🚀 Tecnologías
-
-- **Frontend**: React 18 + TypeScript
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
-- **Build Tool**: Vite
-- **Database**: Supabase (configuración pendiente)
-
-## 📱 Características
-
-- **Responsive Design**: Optimizado para móvil, tablet y desktop
-- **Autenticación**: Sistema de login por roles
-- **Offline Support**: Funcionalidad sin conexión
-- **PWA Ready**: Preparado para Progressive Web App
-
-
-## 🔧 Scripts Disponibles
-
-```bash
-npm run dev      # Servidor de desarrollo
-npm run build    # Build para producción
-npm run preview  # Preview del build
-npm run lint     # Linter ESLint
-```
-# 🏥 Salud Digital APS - Sistema de Gestión
+# Salud Digital APS - Sistema de Gestión
 
 ## 📋 Descripción
+
 Sistema de gestión para programas de Atención Primaria en Salud (APS) que optimiza el registro de información clínica y administrativa.
 
-## 🏗️ Arquitectura
-- **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS
-- **Backend**: Node.js + Express + SQLite
-- **Base de Datos**: SQLite con 16 tablas
+## 🏥 Características Principales
 
-## 🚀 Instalación y Ejecución
+- **Historia Clínica Digital** por especialidades médicas
+- **Gestión de Familias y Pacientes** 
+- **Recetario Digital** con control de medicamentos
+- **Órdenes de Laboratorio** y procedimientos
+- **Dashboard Epidemiológico** y reportes
+- **Multi-rol** para diferentes profesionales de la salud
 
-### Backend
-```bash
+## 🗄️ Base de Datos - Estructura Corregida ✅
+
+### 📊 Modelo Hub-and-Spoke Implementado
+
+### 🏗️ Estructura de Tablas
+
+#### **Módulo Común**
+- `Roles` - Tipos de usuarios del sistema
+- `Equipos_Basicos` - Equipos de salud
+- `Usuarios` - Profesionales y personal
+- `Familias` - Grupos familiares
+- `Pacientes` - Datos de pacientes
+- `Planes_Cuidado_Familiar` - Planes de cuidado
+- `Demandas_Inducidas` - Necesidades identificadas
+
+#### **Hub Central**
+- `Atenciones_Clinicas` - Registro central de atenciones médicas
+
+#### **Spokes Clínicos (Especialidades)**
+- `HC_Medicina_General` - Historia clínica medicina general
+- `HC_Psicologia` - Historia clínica psicología
+- `HC_Fisioterapia` - Historia clínica fisioterapia
+- `HC_Nutricion` - Historia clínica nutrición
+- `HC_Fonoaudiologia` - Historia clínica fonoaudiología
+- `HC_Odontologia` - Historia clínica odontología
+
+#### **Entidades de Salida (CORREGIDAS ✅)**
+- `Recetas_Medicas` - **DERIVADA de HC_Medicina_General**
+- `Ordenes_Laboratorio` - **DERIVADA de HC_Medicina_General**
+
+## 🔗 Relaciones Corregidas - Implementadas
+
+👥 Roles del Sistema
+Médico - Consultas, diagnósticos, tratamientos, recetas, órdenes
+
+Psicólogo - Evaluaciones psicológicas
+
+Fisioterapeuta - Terapias de rehabilitación
+
+Nutricionista - Planes alimentarios
+
+Fonoaudiólogo - Terapias de habla y audición
+
+Odontólogo - Salud oral
+
+Enfermero Jefe - Gestión de cuidados
+
+Auxiliar de Enfermería - Apoyo en cuidados
+
+Administrativo - Gestión administrativa
+
+🚀 Instalación y Ejecución
+Backend
+bash
 cd backend
 npm install
 npm run dev
+Frontend
+bash
+npm install
+npm run dev
+🔧 Tecnologías
+Frontend: React 18 + TypeScript + Vite + Tailwind CSS
 
-## 🔐 Autenticación
+Backend: Node.js + Express + SQLite
 
-El sistema utiliza autenticación basada en roles con sesiones persistentes. Cada rol tiene acceso a funcionalidades específicas según su perfil profesional.
+Base de Datos: SQLite con 16 tablas
 
-## 🎨 Diseño
+Herramientas: DBeaver para gestión de BD
 
-- **Design System**: Basado en principios de Material Design
-- **Colores**: Paleta centrada en verde esmeralda para salud
-- **Tipografía**: Sistema tipográfico escalable
-- **Espaciado**: Sistema de espaciado de 8px
+📊 Estado del Proyecto
+✅ Completado
+Estructura de base de datos completa (16 tablas)
 
-## 📊 Estado del Proyecto
+Relaciones corregidas entre entidades clínicas
 
-- ✅ Sistema de autenticación
-- ✅ Interfaces por rol
-- ✅ Diseño responsive
-- 🔄 Integración con base de datos (en progreso)
-- 🔄 Funcionalidades offline (en progreso)
-- 🔄 PWA (pendiente)
+Modelo Hub-and-Spoke implementado
 
-## 🤝 Contribución
+Tablas derivadas correctamente asociadas
 
-Este proyecto es parte del programa de Atención Primaria en Salud de la UAO.
+Campos requeridos para sistema médico
 
-## 📄 Licencia
-
-Proyecto académico - Universidad Autónoma de Occidente
-
----
-
-Desarrollado con ❤️ para mejorar la atención primaria en salud
+Base de datos validada y funcionando
